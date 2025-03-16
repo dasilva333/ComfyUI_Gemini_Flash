@@ -35,7 +35,9 @@ class Gemini_ImageEditor:
             "required": {
                 "prompt": ("STRING", {"default": "Modify the image accordingly.", "multiline": True}),
                 "image": ("IMAGE",),
-                "api_key": ("STRING", {"default": ""})
+                "api_key": ("STRING", {"default": ""}),
+                "temperature": ("FLOAT", {"default": 1.0}),
+                "top_p": ("FLOAT", {"default": 0.95})
             }
         }
 
@@ -66,7 +68,7 @@ class Gemini_ImageEditor:
         tensor = torch.from_numpy(np.array(image).astype(np.float32) / 255.0)
         return tensor.unsqueeze(0)
 
-    def edit_image(self, prompt, image, api_key):
+    def edit_image(self, prompt, image, api_key, temperature, top_p):
         if api_key and api_key != self.api_key:
             self.api_key = api_key
             self.client = genai.Client(api_key=self.api_key)
@@ -91,9 +93,9 @@ class Gemini_ImageEditor:
             ]
 
             generation_config = genai.types.GenerateContentConfig(
-                temperature=1,
+                temperature=temperature,
                 top_k=40,
-                top_p=0.95,
+                top_p=top_p,
                 max_output_tokens=8192,
                 response_modalities=["image", "text"],
                 response_mime_type="text/plain",
@@ -121,9 +123,10 @@ class Gemini_ImageEditor:
                             edited_image = Image.open(BytesIO(image_data))
                             return (self.image_to_tensor(edited_image), 0, candidate.content.parts[-1].text if candidate.content.parts[-1].text else "")
                 else:
-                    print("Content without parts:", candidate.finish_reason)
+                    print("No inline_data found in parts. Candidate:", candidate)
                     return (self.image_to_tensor(original_image), 2, candidate.finish_reason)
-
+                
+            print("No valid candidates found. Full response:", response)
             return (self.image_to_tensor(original_image), 3, "")
 
         except Exception as e:
